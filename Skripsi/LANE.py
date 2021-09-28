@@ -73,39 +73,40 @@ class LANE:
         return masked_image
 
     def houghTransform(self, image):
-        rho = .5
+        rho = 2
         theta = np.pi/180
-        threshold = 30
-        minLineLength = 20
-        maxLineGap = 300 
+        threshold = 100
+        minLineLength = 40
+        maxLineGap = 5
         return cv.HoughLinesP(image, rho = rho, theta = theta, threshold = threshold,
                            minLineLength = minLineLength, maxLineGap = maxLineGap)
 
-    def average_slope_intercept(self, lines):
-        left_lines    = [] #(slope, intercept)
-        left_weights  = [] #(length,)
-        right_lines   = [] #(slope, intercept)
-        right_weights = [] #(length,)
+    def average_slope_intercept(self, image, lines):
+        left_fit = []
+        right_fit = []
         
-
         for line in lines:
-            for x1, y1, x2, y2 in line:
-                if x1 == x2:
-                    continue
-                slope = (y2 - y1) / (x2 - x1)
-                intercept = y1 - (slope * x1)
-                length = np.sqrt(((y2 - y1) ** 2) + ((x2 - x1) ** 2))
-                if slope < 0:
-                    left_lines.append((slope, intercept))
-                    left_weights.append((length))
-                else:
-                    right_lines.append((slope, intercept))
-                    right_weights.append((length))
+            x1, y1, x2, y2 = line.reshape(4)
+            parameters = np.polyfit((x1, x2), (y1, y2), 1)
+            slope = parameters[0]
+            intercept = parameters[1]
+            if slope < 0:
+                left_fit.append((slope, intercept))
+            else:
+                right_fit.append((slope, intercept))
+        left_fit_average = np.average(left_fit, axis = 0)
+        right_fit_average = np.average(right_fit, axis = 0)
+        left_line = self.create_coordinates(image, left_fit_average)
+        right_line = self.create_coordinates(image, right_fit_average)
+        return np.array([left_line, right_line])
 
-        left_lane  = np.dot(left_weights,  left_lines) / np.sum(left_weights)  if len(left_weights) > 0 else None
-        right_lane = np.dot(right_weights, right_lines) / np.sum(right_weights) if len(right_weights) > 0 else None
-        return left_lane, right_lane
-
+    def create_coordinates(self, image, line_parameters):
+        slope, intercept = line_parameters
+        y1 = image.shape[0]
+        y2 = int(y1 * (3 / 5))
+        x1 = int((y1 - intercept) / slope)
+        x2 = int((y2 - intercept) / slope)
+        return np.array([x1, y1, x2, y2])
     def pixel_points(self, y1, y2, line):
         if line is None:
             return None
@@ -120,12 +121,12 @@ class LANE:
         return ((x1, y1), (x2, y2))
 
     def lane_lines(self, image, lines):
-        left_lane, right_lane = self.average_slope_intercept(lines)
-        y1 = image.shape[0]
-        y2 = y1 * 0.4
-        left_line  = self.pixel_points(y1, y2, left_lane)
-        right_line = self.pixel_points(y1, y2, right_lane)
-        return left_line, right_line
+        left_lane, right_lane = self.average_slope_intercept(image, lines)
+        # y1 = image.shape[0]
+        # y2 = y1 * 0.4
+        # left_line  = self.pixel_points(y1, y2, left_lane)
+        # right_line = self.pixel_points(y1, y2, right_lane)
+        return left_lane, right_lane
 
     def drawLaneLines(self, image, lines, color=[0, 0, 255], thickness=12):
         line_image = np.zeros_like(image)
