@@ -1,4 +1,5 @@
 import asyncio
+import sys
 import websockets
 import Skripsi
 import json
@@ -39,7 +40,6 @@ async def server(websocket, path):
                     if message == "RUN":
                         print("Yok maju")
                         running = True
-                        
                         await car.send("{\"ACTION\" : \"RUN\", \"DEG\" : 90}")
                     elif message == "STOP":
                         print("Stop")
@@ -48,16 +48,21 @@ async def server(websocket, path):
             else:
                 if phone is not None:
                     if type(message) is bytes:
-                        lane.setImage(message)
-                        # lane.save()
-                        # lane.grayscale()
-                        # lane.threshold()
-                        await phone.send(lane.getImage())
+                        image = lane.setImage(message)
+                        lane.save()
+                        color = lane.colorSelection(image)
+                        gray = lane.grayscale(color)
+                        gaussian = lane.gaussianBlur(gray)
+                        edge = lane.cannyEdgeDetection(gaussian)
+                        roi = lane.regionSelection(edge)
+                        hough = lane.houghTransform(roi)
+                        
+                        await phone.send(lane.getImage(lane.drawLaneLines(image, lane.lane_lines(image, hough))))
                             # await detectLine(message)
                     else:
                         await phone.send(message)
     except:
-        None
+        print("Unexpected error:", sys.exc_info()[0])
 
     finally:
         running = False
@@ -73,7 +78,7 @@ async def server(websocket, path):
                     await phone.send("CAR DISCONNECTED")
 
 
-start_server = websockets.serve(server, "192.168.100.150", 5000)
+start_server = websockets.serve(server, "192.168.73.233", 5000)
 
 asyncio.get_event_loop().run_until_complete(start_server)
 asyncio.get_event_loop().run_forever()
