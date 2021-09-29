@@ -1,5 +1,6 @@
 /__pycache__
 /Skripsi/__pycache__
 .note
+*.logs
 test.py
 client.py

@@ -2,7 +2,7 @@ from Skripsi.PID import PID
 from Skripsi.LANE import LANE
 
 
-def pid(setPoint = 0):
+def pid(setPoint):
     return PID(setPoint)
 
 def lane():

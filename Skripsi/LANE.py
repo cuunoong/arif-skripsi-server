@@ -13,37 +13,23 @@ def akar(x, n = 2):
     return pangkat(x, 1 / n)
 
 class LANE:
-
+    __logs = "lane.logs"
     __image = None
+    __tinggi = 0
+    __lebar = 0
     __tengah  = 320
-    __kiri    = 30
-    __kanan   = 370
-    __baris   = 200
-    __posisiKiri = []
-    __posisiKanan = []
-    __rataKiri = 30
-    __rataKanan = 370
-    
+    def __init__(self) -> None:
+        self.write("")
+
     def setImage(self, image):
         pil_image = Image.open(io.BytesIO(image))
-        W,H = pil_image.size
-        self.__tengah = W / 2
+        self.__lebar,self.__tinggi = pil_image.size
+        self.__tengah = self.__lebar / 2
         opencv_image = np.array(pil_image)
         self.__image = opencv_image
         # self.__image = cv.cvtColor(opencv_image, cv.COLOR_BGR2RGB)
         # self.__image = cv.rotate(self.__image, cv.ROTATE_180)
         return self.__image
-    
-    def colorSelection(self, image = None):
-        if(image is None):
-            image = self.__image
-        lower_threshold = np.uint8([0, 150, 0])
-        upper_threshold = np.uint8([255, 255, 255])
-        mask = cv.inRange(image, lower_threshold, upper_threshold)
-
-        color = cv.bitwise_and(image, image, mask = mask)
-        return color
-
 
     def grayscale(self, img):
         return cv.cvtColor(img, cv.COLOR_RGB2GRAY)
@@ -64,69 +50,30 @@ class LANE:
         rows, cols = img.shape[:2]
         
         bottom_left  = [0, rows * 1]
-        top_left     = [cols * 0.25, rows * 0.4]
+        top_left     = [cols * 0.2, rows * 0.4]
         bottom_right = [cols*1, rows * 1]
-        top_right    = [cols * 0.75, rows * 0.4]
+        top_right    = [cols * 0.7, rows * 0.4]
         vertices = np.array([[bottom_left, top_left, top_right, bottom_right]], dtype=np.int32)
         cv.fillPoly(mask, vertices, ignore_mask_color)
         masked_image = cv.bitwise_and(img, mask)
         return masked_image
 
-    def houghTransform(self, image):
-        rho = 2
-        theta = np.pi/180
-        threshold = 100
-        minLineLength = 40
-        maxLineGap = 5
-        return cv.HoughLinesP(image, rho = rho, theta = theta, threshold = threshold,
-                           minLineLength = minLineLength, maxLineGap = maxLineGap)
+    def getLanes(self, img):
+        left = 0
+        right = self.__lebar
 
-    def average_slope_intercept(self, image, lines):
-        left_fit = []
-        right_fit = []
+        bottom = self.__tinggi - 100
         
-        for line in lines:
-            x1, y1, x2, y2 = line.reshape(4)
-            parameters = np.polyfit((x1, x2), (y1, y2), 1)
-            slope = parameters[0]
-            intercept = parameters[1]
-            if slope < 0:
-                left_fit.append((slope, intercept))
+        row, col  = np.where(img == 255)
+        white_row = np.where(row == bottom - 1)
+        for _row in white_row[0]:
+            if col[_row] < self.__lebar / 2:
+                if left < col[_row]:
+                    left = col[_row]
             else:
-                right_fit.append((slope, intercept))
-        left_fit_average = np.average(left_fit, axis = 0)
-        right_fit_average = np.average(right_fit, axis = 0)
-        left_line = self.create_coordinates(image, left_fit_average)
-        right_line = self.create_coordinates(image, right_fit_average)
-        return np.array([left_line, right_line])
-
-    def create_coordinates(self, image, line_parameters):
-        slope, intercept = line_parameters
-        y1 = image.shape[0]
-        y2 = int(y1 * (3 / 5))
-        x1 = int((y1 - intercept) / slope)
-        x2 = int((y2 - intercept) / slope)
-        return np.array([x1, y1, x2, y2])
-    def pixel_points(self, y1, y2, line):
-        if line is None:
-            return None
-        slope, intercept = line
-        x1 = 0
-        x2 = 0
-        if(slope > 0):
-            x1 = int((y1 - intercept)/slope)
-            x2 = int((y2 - intercept)/slope)
-        y1 = int(y1)
-        y2 = int(y2)
-        return ((x1, y1), (x2, y2))
-
-    def lane_lines(self, image, lines):
-        left_lane, right_lane = self.average_slope_intercept(image, lines)
-        # y1 = image.shape[0]
-        # y2 = y1 * 0.4
-        # left_line  = self.pixel_points(y1, y2, left_lane)
-        # right_line = self.pixel_points(y1, y2, right_lane)
-        return left_lane, right_lane
+                if right > col[_row]:
+                    right = col[_row]
+        return (((left, bottom + 10), (left, bottom - 10)), ((right, bottom + 10), (right, bottom - 10)))
 
     def drawLaneLines(self, image, lines, color=[0, 0, 255], thickness=12):
         line_image = np.zeros_like(image)
@@ -136,8 +83,13 @@ class LANE:
         return cv.addWeighted(image, 1.0, line_image, 1.0, 0.0)
         
         
-    def getDegree(self, left, right):
+    def getDegree(self, lines):
+        left_line, right_line = lines
+        left = left_line[0][0]
+        right = right_line[0][0] 
+        
         posisi = (left + right) / 2
+
         garisMiring = akar(pangkat(posisi - self.__tengah) + pangkat(100))
         E = abs(posisi - self.__tengah) / garisMiring
         angle = math.asin(E)
@@ -146,6 +98,9 @@ class LANE:
             degree += 90
         else:
             degree = 90 - degree
+        
+        self.log("left=" + str(left) + ";right=" + str(right) + ";deg=" + str(degree))
+
         return math.floor(degree)
 
     def save(self, image =  None):
@@ -156,6 +111,16 @@ class LANE:
             ts = calendar.timegm(time.gmtime())
             cv.imwrite('capture/' + str(ts) + ".jpg", self.__image)
 
+    def write(self, msg):
+        f = open(self.__logs, 'w')
+        f.write(msg  + "\n")
+        f.close()
+    
+    def log(self, log):
+        f = open(self.__logs, 'a')
+        f.write(log + "\n")
+        f.close()
+        
     def getImage(self, image = None):
         if(image is None):
             image = self.__image.copy()
