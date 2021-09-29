@@ -8,15 +8,16 @@ phone = None
 car = None
 running = False
 
-PID = Skripsi.pid()
-
+PID = Skripsi.pid(90)
+deg = 90
+LANE = Skripsi.lane()
 async def server(websocket, path):
     global phone
     global car
     global running
     global PID
-    lane = Skripsi.lane()
-
+    global LANE
+    global deg
     try:
         async  for message in websocket:
             
@@ -40,7 +41,7 @@ async def server(websocket, path):
                     if message == "RUN":
                         print("Yok maju")
                         running = True
-                        await car.send("{\"ACTION\" : \"RUN\", \"DEG\" : 90}")
+                        await car.send("{\"ACTION\" : \"RUN\", \"DEG\" : " + str(deg)+ "}")
                     elif message == "STOP":
                         print("Stop")
                         running = False
@@ -48,16 +49,17 @@ async def server(websocket, path):
             else:
                 if phone is not None:
                     if type(message) is bytes:
-                        image = lane.setImage(message)
-                        lane.save()
-                        color = lane.colorSelection(image)
-                        gray = lane.grayscale(color)
-                        gaussian = lane.gaussianBlur(gray)
-                        edge = lane.cannyEdgeDetection(gaussian)
-                        roi = lane.regionSelection(edge)
-                        hough = lane.houghTransform(roi)
-                        
-                        await phone.send(lane.getImage(lane.drawLaneLines(image, lane.lane_lines(image, hough))))
+                        image = LANE.setImage(message)
+                        LANE.save()
+                        gray = LANE.grayscale(image)
+                        blur = LANE.gaussianBlur(gray)
+                        edge = LANE.cannyEdgeDetection(blur)
+                        roi = LANE.regionSelection(edge)
+                        lanes = LANE.getLanes(roi)
+                        final = LANE.drawLaneLines(image, lanes)
+                        deg = LANE.getDegree(lanes)
+
+                        await phone.send(LANE.getImage(final))
                             # await detectLine(message)
                     else:
                         await phone.send(message)
