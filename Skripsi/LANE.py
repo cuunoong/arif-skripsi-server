@@ -135,6 +135,7 @@ class LANE:
                 cv.line(line_image, *line,  color, thickness)
         return cv.addWeighted(image, 1.0, line_image, 1.0, 0.0)
         
+        
     def getDegree(self, left, right):
         posisi = (left + right) / 2
         garisMiring = akar(pangkat(posisi - self.__tengah) + pangkat(100))
